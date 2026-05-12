@@ -10,6 +10,7 @@ import { getProxyBaseURL, registerCleanup, startProxy } from "./proxy"
 
 export const ClaudeMaxPlugin: Plugin = async ({ client, directory }) => {
   const log = createLogger(client)
+  const agentModes = new Map<string, string>()
 
   if (
     directory &&
@@ -39,6 +40,11 @@ export const ClaudeMaxPlugin: Plugin = async ({ client, directory }) => {
   return {
     // Set the base URL for the Anthropic provider
     async config(input) {
+      for (const [name, agent] of Object.entries(input.agent ?? {})) {
+        if (!agent?.mode) continue
+        agentModes.set(name.toLowerCase(), agent.mode)
+      }
+
       const anthropic = input.provider?.anthropic
       if (!anthropic) return
       ;(anthropic.options ??= {}).baseURL = baseURL
@@ -59,21 +65,14 @@ export const ClaudeMaxPlugin: Plugin = async ({ client, directory }) => {
       if (incoming.model.providerID !== "anthropic") return
       delete output.headers["anthropic-beta"]
 
-      const agent = incoming.agent as
-        | { name?: string; mode?: string }
-        | string
-        | undefined
-      const agentDetails =
-        typeof agent === "object" && agent !== null ? agent : undefined
-      const rawAgentName = agentDetails?.name ?? String(agent ?? "unknown")
-      const agentMode = agentDetails?.mode ?? "primary"
+      const agentKey =
+        String(incoming.agent ?? "unknown").replace(/[^\x20-\x7E]/g, "").trim() ||
+        "unknown"
+      const agentMode = agentModes.get(agentKey.toLowerCase()) ?? "primary"
 
       output.headers["x-opencode-session"] = incoming.sessionID
       output.headers["x-opencode-request"] = incoming.message.id
       output.headers["x-opencode-agent-mode"] = agentMode
-      output.headers["x-opencode-agent-name"] = rawAgentName
-        .replace(/[^\x20-\x7E]/g, "")
-        .trim() || "unknown"
     },
   }
 }
