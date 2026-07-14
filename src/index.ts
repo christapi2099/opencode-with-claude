@@ -7,6 +7,7 @@ import {
   summarizeMeridianConfig,
 } from "./meridian-config"
 import { getProxyBaseURL, registerCleanup, startProxy } from "./proxy"
+import { createVisionMessagesTransform, visionDescribeTool } from "./vision"
 
 export const ClaudeMaxPlugin: Plugin = async ({ client }) => {
   const log = createLogger(client)
@@ -30,6 +31,14 @@ export const ClaudeMaxPlugin: Plugin = async ({ client }) => {
   registerCleanup(proxy)
 
   return {
+    // Eagle Eyes: give text-only models (GLM, DeepSeek, etc.) the ability to
+    // "see" images. The tool covers "look at this file path"; the messages
+    // transform covers images pasted/attached directly into chat.
+    tool: {
+      vision_describe: visionDescribeTool,
+    },
+    "experimental.chat.messages.transform": createVisionMessagesTransform(log),
+
     // Set the base URL for the Anthropic provider
     async config(input) {
       for (const [name, agent] of Object.entries(input.agent ?? {})) {
